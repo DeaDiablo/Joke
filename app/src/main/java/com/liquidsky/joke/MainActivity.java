@@ -5,6 +5,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
@@ -14,8 +15,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.Random;
+import java.util.concurrent.locks.Lock;
 
-public class MainActivity extends AppCompatActivity implements RequestCompleted, View.OnTouchListener {
+public class MainActivity extends AppCompatActivity implements RequestCompleted, View.OnClickListener {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -37,9 +39,11 @@ public class MainActivity extends AppCompatActivity implements RequestCompleted,
     }
 
     @Override
-    protected void onStop () {
-        super.onStop();
-        request.cancel(false);
+    protected void onDestroy() {
+        if (request != null) {
+            request.cancel(true);
+        }
+        super.onDestroy();
     }
 
     private Random rnd = new Random();
@@ -89,17 +93,17 @@ public class MainActivity extends AppCompatActivity implements RequestCompleted,
         button.setBackgroundColor(generateColor(index));
 
         GridLayout.LayoutParams params = new GridLayout.LayoutParams();
-        params.setMargins(3, 3, 3, 3);
+        params.setMargins(10, 10, 10, 10);
         button.setLayoutParams(params);
-        button.setOnTouchListener(this);
-
-        button.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                requestNewJoke();
-            }
-        });
+        button.setOnClickListener(this);
         return button;
     }
+
+    private final float scaleButton = 1.075f;
+    private final long swapTime = 500L;
+    private boolean swapMode = false;
+    private int selectIndex = 0;
+    private int maxIndex = 0;
 
     @Override
     public void onRequestCompleted(String result) {
@@ -129,29 +133,76 @@ public class MainActivity extends AppCompatActivity implements RequestCompleted,
         }
 
         String[] jokeWords = jokeText.split(" ");
+        maxIndex = jokeWords.length - 1;
+        selectIndex = selectIndex > maxIndex ? maxIndex : selectIndex;
         for (int i = 0; i < jokeWords.length; ++i) {
-            Button button = createRequestButton(jokeWords[i], (int)(layout.getWidth() * 0.33), (int)(layout.getHeight() * 0.1), i);
+            Button button = createRequestButton(jokeWords[i], (int)(layout.getWidth() * 0.3), (int)(layout.getHeight() * 0.1), i);
+            if (i == selectIndex) {
+                button.setScaleX(scaleButton);
+                button.setScaleY(scaleButton);
+            }
             layout.addView(button, i);
         }
     }
 
+    private void changeSelectWord(int x, int y) {
+        GridLayout layout = (GridLayout) findViewById(R.id.gridLayout);
+
+        int oldIndex = selectIndex;
+        selectIndex = selectIndex + y * 3 + x;
+        selectIndex = Math.min(Math.max(selectIndex, 0), maxIndex);
+
+        if (selectIndex == oldIndex) {
+            return;
+        }
+
+        Button prevButton = (Button)layout.getChildAt(oldIndex);
+        Button nextButton = (Button)layout.getChildAt(selectIndex);
+
+        if (swapMode) {
+            layout.removeView(prevButton);
+            layout.addView(prevButton, selectIndex);
+            layout.removeView(nextButton);
+            layout.addView(nextButton, oldIndex);
+        } else {
+            prevButton.setScaleX(1.0f);
+            prevButton.setScaleY(1.0f);
+            nextButton.setScaleX(scaleButton);
+            nextButton.setScaleY(scaleButton);
+        }
+    }
 
     @Override
-    public boolean onTouch(View view, MotionEvent me) {
-        switch (me.getAction())
-        {
-            case MotionEvent.ACTION_DOWN:
-                Log.d("down", "down");
-                break;
+    public void onClick(View view) {
+        requestNewJoke();
+    }
 
-            case MotionEvent.ACTION_MOVE:
-                Log.d("move", "move");
-                break;
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent ev) {
+        int xAxis = (int)ev.getAxisValue(MotionEvent.AXIS_HAT_X);
+        int yAxis = (int)ev.getAxisValue(MotionEvent.AXIS_HAT_Y);
+        Log.d("axis: ", " " + xAxis + " " + yAxis);
+        if (xAxis != 0 || yAxis != 0)
+            changeSelectWord(xAxis, yAxis);
+        return false;
+    }
 
-            case MotionEvent.ACTION_UP:
-                Log.d("up", "up");
-                break;
-
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent ev) {
+        if (KeyEvent.isGamepadButton(ev.getKeyCode())) {
+            switch (ev.getKeyCode()) {
+                case KeyEvent.KEYCODE_BUTTON_A:
+                    if (ev.getAction() == KeyEvent.ACTION_UP) {
+                        requestNewJoke();
+                    }
+                    break;
+                case KeyEvent.KEYCODE_BUTTON_Y:
+                    if (ev.getAction() == KeyEvent.ACTION_UP) {
+                        long downTime = (ev.getEventTime() - ev.getDownTime());
+                        swapMode = downTime > swapTime;
+                    }
+                    break;
+            }
         }
         return false;
     }
