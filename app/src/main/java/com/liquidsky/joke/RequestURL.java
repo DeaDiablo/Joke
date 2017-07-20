@@ -39,7 +39,7 @@ public class RequestURL extends AsyncTask<String, Void, String> {
             InputStreamReader inputStreamReader = new InputStreamReader(urlConnection.getInputStream());
             if (inputStreamReader == null) {
                 // Nothing to do.
-                return null;
+                return result;
             }
 
             StringBuffer buffer = new StringBuffer();
@@ -47,29 +47,22 @@ public class RequestURL extends AsyncTask<String, Void, String> {
 
             String line;
             while ((line = reader.readLine()) != null) {
-                // Since it's JSON, adding a newline isn't necessary (it won't affect parsing)
-                // But it does make debugging a *lot* easier if you print out the completed
-                // buffer for debugging.
                 buffer.append(line + "\n");
             }
 
-            if (buffer.length() == 0) {
-                // Stream was empty.  No point in parsing.
-                return null;
-            }
             result = buffer.toString();
         }
         catch (MalformedURLException e) {
             Log.e("URL error", e.getMessage(), e);
-            return null;
+            return result;
         }
         catch (IOException e) {
             Log.e("Request error", e.getMessage(), e);
-            return null;
+            return result;
         }
         catch (NetworkOnMainThreadException e) {
             Log.e("Request error", e.getMessage(), e);
-            return null;
+            return result;
         }
         finally {
             if (urlConnection != null) {
